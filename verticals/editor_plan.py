@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from .log import log
+from .asset_matcher import match_assets_to_beats
+from .script_beats import build_script_beats
+from .timeline_validation import validate_semantic_timeline
 
 ALLOWED_EFFECTS = {"punch_zoom", "pan", "pan_right", "shake", "hard_cut", "zoom_in", "zoom_out"}
 ALLOWED_FITS = {"cover_crop", "fit_width_pad", "contain_pad"}
@@ -73,10 +76,16 @@ def create_editor_timeline(
         text = call_llm(prompt, provider=provider, max_tokens=2500)
         payload = _extract_json(text)
         timeline = validate_editor_timeline(payload.get("timeline", []), manifest, duration, editing)
+        semantic_report = validate_semantic_timeline(timeline, duration)
         if timeline:
             _log_timeline_summary(timeline, duration)
-            log(f"Editor brain produced {len(timeline)} timeline cuts")
-            return timeline
+            if semantic_report["warnings"]:
+                log(f"Editor warnings: {semantic_report['warnings']}")
+            if not semantic_report["valid"]:
+                log(f"Editor semantic validation failed: {semantic_report['errors']}")
+            else:
+                log(f"Editor brain produced {len(timeline)} timeline cuts")
+                return timeline
         log("Editor brain returned no valid cuts - using fallback timeline")
     except Exception as exc:
         log(f"Editor brain failed ({exc}) - using fallback timeline")
@@ -266,6 +275,8 @@ def _build_editor_prompt(
     transcript_sample = transcript_words[:220]
     transcript_segments = _transcript_segments(transcript_words)
     source_targets = _source_targets(editing)
+    beats = draft.get("script_beats") or build_script_beats(script, niche=draft.get("niche", "general"))
+    ranked_assets = match_assets_to_beats(beats, assets) if beats and assets else []
     payload = {
         "job": {
             "title": draft.get("youtube_title", ""),
@@ -274,9 +285,11 @@ def _build_editor_prompt(
             "editing_style": editing.get("style", "balanced"),
         },
         "script": script,
+        "script_beats": beats,
         "transcript_words": transcript_sample,
         "transcript_segments": transcript_segments,
         "assets": assets,
+        "ranked_assets": ranked_assets,
         "music_plan": music_plan,
         "source_targets": source_targets,
         "rules": [

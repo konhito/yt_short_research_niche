@@ -160,6 +160,33 @@ def test_editor_prompt_includes_source_targets_and_reddit_metadata():
     assert "source_start_seconds" in prompt
 
 
+def test_editor_prompt_includes_script_beats_and_ranked_assets():
+    prompt = _build_editor_prompt(
+        {
+            "script": "Rockstar leaked the map.",
+            "youtube_title": "T",
+            "niche": "gaming",
+            "script_beats": [
+                {"beat_id": "beat_001", "script_text": "Rockstar leaked the map", "search_queries": ["Rockstar map", "GTA 6 map", "gaming leak"]},
+            ],
+        },
+        [{"word": "Rockstar", "start": 0, "end": 0.2}],
+        build_asset_manifest([{
+            "path": "yt.mp4",
+            "type": "harvested_video",
+            "source": "youtube_harvest",
+            "title": "Rockstar leak reaction",
+            "relevance_score": 20,
+        }]),
+        {},
+        4,
+        {"youtube_clips": [4, 8], "reddit_clips": [4, 8], "meme_beats": [6, 10], "ai_images": [0, 1]},
+    )
+
+    assert "script_beats" in prompt
+    assert "ranked_assets" in prompt
+
+
 def test_editor_validation_clamps_source_range_to_clip_duration():
     assets = build_asset_manifest([{
         "path": "yt.mp4",

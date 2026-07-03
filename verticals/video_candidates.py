@@ -10,6 +10,8 @@ from pathlib import Path
 from PIL import Image
 
 from .config import run_cmd
+from .asset_quality import evaluate_asset_quality
+from .video_inspection import inspect_media_file
 
 
 def normalize_candidate(raw: dict) -> dict:
@@ -110,16 +112,11 @@ def create_contact_sheet(path: Path, duration: float, out_path: Path) -> Path:
 
 def enrich_candidate(candidate: dict) -> dict:
     path = Path(candidate["path"])
-    metadata = probe_video(path)
-    contact_path = path.parent / "contact_sheet.jpg"
-    try:
-        create_contact_sheet(path, metadata["actual_duration"], contact_path)
-        contact_value = str(contact_path)
-    except Exception:
-        contact_value = ""
+    inspection = inspect_media_file(path)
+    quality = evaluate_asset_quality(inspection)
     return {
         **candidate,
-        **metadata,
-        "media_hash": hash_file(path),
-        "contact_sheet_path": contact_value,
+        **inspection,
+        **quality,
+        "quality_score": quality.get("quality_score", 0.0),
     }

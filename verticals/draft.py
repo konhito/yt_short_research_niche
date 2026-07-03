@@ -11,6 +11,7 @@ from .config import PLATFORM_CONFIGS
 from .llm import call_llm
 from .log import log
 from .niche import load_niche, get_editing_config, get_script_context, get_visual_context, get_visual_prompt_suffix
+from .script_beats import build_script_beats
 from .visual_plan import normalize_visual_plan
 from .research import extract_research_images, research_topic
 from .search_tags import normalize_search_tags
@@ -154,6 +155,9 @@ RULES:
 Output JSON exactly:
 {{
   "script": "...",
+  "script_beats": [
+    {{"beat_id": "beat_001", "script_text": "...", "search_queries": ["...", "...", "..."], "preferred_types": ["youtube_harvest", "imgflip", "web_research"]}}
+  ],
   "search_tags": [
     "five full, specific search phrases grounded in this exact story",
     "include named subjects, events, locations, objects, or reactions visible on screen",
@@ -224,6 +228,7 @@ Output JSON exactly:
         ]
 
     draft["news"] = news
+    draft["script_beats"] = build_script_beats(draft.get("script", ""), niche=niche)
     draft["search_tags"] = normalize_search_tags(draft)
     log("AI search tags:\n" + "\n".join(
         f"  {index}. {tag}" for index, tag in enumerate(draft["search_tags"], 1)

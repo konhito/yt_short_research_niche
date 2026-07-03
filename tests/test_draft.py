@@ -107,3 +107,24 @@ class TestGenerateDraft:
 
         draft = generate_draft("Test")
         assert len(draft["broll_prompts"]) == 3  # truncated to 3
+
+    @patch("verticals.draft.research_topic")
+    @patch("verticals.draft._call_claude")
+    def test_includes_script_beats_in_prompt_and_draft(self, mock_claude, mock_research):
+        mock_research.return_value = "research"
+        mock_claude.return_value = json.dumps({
+            "script": "GTA 6 leaks are everywhere. Rockstar is silent.",
+            "broll_prompts": ["p1", "p2", "p3"],
+            "youtube_title": "T",
+            "youtube_description": "D",
+            "youtube_tags": "t",
+            "instagram_caption": "C",
+            "thumbnail_prompt": "P",
+        })
+
+        draft = generate_draft("GTA 6 leaks are everywhere. Rockstar is silent.", niche="gaming")
+
+        prompt = mock_claude.call_args[0][0]
+        assert "script_beats" in prompt
+        assert draft["script_beats"][0]["beat_id"] == "beat_001"
+        assert len(draft["script_beats"][0]["search_queries"]) == 3
