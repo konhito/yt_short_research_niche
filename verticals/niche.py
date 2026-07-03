@@ -226,9 +226,13 @@ def get_editing_config(profile: dict) -> dict:
         "cut_duration_seconds": [3, 6],
         "pexels_clips": [1, 3],
         "meme_beats": [0, 2],
-        "ai_images": [2, 4],
+        "ai_images": [0, 0],
         "youtube_clips": [0, 0],
         "reddit_clips": [0, 0],
+        "vimeo_clips": [0, 4],
+        "vimeo_harvest_results": 20,
+        "clip_review_batch_size": 4,
+        "clip_review_threshold": 0.58,
         "research_images": [0, 3],
         "prefer_scraped_video": False,
         "minimum_video_candidates": 8,
@@ -239,7 +243,11 @@ def get_editing_config(profile: dict) -> dict:
     raw = {**defaults, **(profile.get("editing", {}) or {})}
     if "VIDEO_HARVEST_ENABLED" in os.environ:
         raw["prefer_scraped_video"] = os.environ["VIDEO_HARVEST_ENABLED"].lower() in {"1", "true", "yes", "on"}
-    for env_name, key in (("YOUTUBE_HARVEST_DOWNLOADS", "youtube_clips"), ("REDDIT_HARVEST_DOWNLOADS", "reddit_clips")):
+    for env_name, key in (
+        ("YOUTUBE_HARVEST_DOWNLOADS", "youtube_clips"),
+        ("REDDIT_HARVEST_DOWNLOADS", "reddit_clips"),
+        ("VIMEO_HARVEST_DOWNLOADS", "vimeo_clips"),
+    ):
         if os.environ.get(env_name):
             limit = max(0, int(os.environ[env_name]))
             current = raw.get(key, [0, limit])
@@ -265,13 +273,17 @@ def get_editing_config(profile: dict) -> dict:
         "cut_duration_seconds": normalized_range(raw["cut_duration_seconds"], defaults["cut_duration_seconds"]),
         "pexels_clips": normalized_range(raw["pexels_clips"], defaults["pexels_clips"]),
         "meme_beats": normalized_range(raw["meme_beats"], defaults["meme_beats"]),
-        "ai_images": normalized_range(raw["ai_images"], defaults["ai_images"]),
+        "ai_images": [0, 0],
         "youtube_clips": normalized_range(raw["youtube_clips"], defaults["youtube_clips"]),
         "reddit_clips": normalized_range(raw["reddit_clips"], defaults["reddit_clips"]),
+        "vimeo_clips": normalized_range(raw["vimeo_clips"], defaults["vimeo_clips"]),
         "research_images": normalized_range(raw["research_images"], defaults["research_images"]),
         "prefer_scraped_video": bool(raw.get("prefer_scraped_video", False)),
         "minimum_video_candidates": max(0, int(raw.get("minimum_video_candidates", 8))),
         "harvest_workers": max(1, min(8, int(raw.get("harvest_workers", 4)))),
+        "vimeo_harvest_results": max(1, min(100, int(raw.get("vimeo_harvest_results", 20)))),
+        "clip_review_batch_size": max(1, min(8, int(raw.get("clip_review_batch_size", 4)))),
+        "clip_review_threshold": max(0.0, min(1.0, float(raw.get("clip_review_threshold", 0.58)))),
         "reddit_harvest_after": str(raw.get("reddit_harvest_after", "30d")),
         "effects": [effect for effect in raw.get("effects", []) if effect in allowed_effects] or defaults["effects"],
     }

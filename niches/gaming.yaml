@@ -11,6 +11,8 @@ editing:
   prefer_scraped_video: true
   youtube_clips: [4, 8]
   reddit_clips: [4, 8]
+  vimeo_clips: [0, 4]
+  vimeo_harvest_results: 20
   research_images: [1, 4]
   minimum_video_candidates: 8
   harvest_workers: 4

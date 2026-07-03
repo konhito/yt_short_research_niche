@@ -206,6 +206,41 @@ def test_editor_validation_clamps_source_range_to_clip_duration():
     assert timeline[0]["source_start_seconds"] == 9.0
 
 
+def test_editor_validation_clamps_source_range_to_reviewed_ranges():
+    assets = build_asset_manifest([{
+        "path": "yt.mp4",
+        "type": "harvested_video",
+        "source": "youtube_harvest",
+        "actual_duration": 20.0,
+        "approved_source_ranges": [{"start": 5.0, "end": 9.0, "reason": "relevant"}],
+        "review_decision": "keep",
+        "visual_description": "Anthropic Claude interface",
+        "matched_beat_ids": ["beat_002"],
+    }])
+    raw = [{"asset_id": "asset_001", "start": 0, "end": 3, "source_start_seconds": 14}]
+
+    timeline = validate_editor_timeline(raw, assets, duration=3.0)
+
+    assert timeline[0]["source_start_seconds"] == 6.0
+
+
+def test_editor_manifest_preserves_visual_review_metadata():
+    manifest = build_asset_manifest([{
+        "path": "vimeo.mp4",
+        "source": "vimeo_harvest",
+        "approved_source_ranges": [{"start": 2.0, "end": 7.0, "reason": "demo"}],
+        "review_decision": "keep",
+        "review_reason": "Matches Claude demo",
+        "visual_description": "Claude product screen",
+        "matched_beat_ids": ["beat_001"],
+        "review_warnings": [],
+    }])
+
+    assert manifest[0]["approved_source_ranges"][0]["start"] == 2.0
+    assert manifest[0]["visual_description"] == "Claude product screen"
+    assert manifest[0]["review_decision"] == "keep"
+
+
 def test_editor_validation_rejects_duplicate_meme_file_across_asset_ids():
     assets = build_asset_manifest([
         {"path": "same.jpg", "type": "meme", "source": "imgflip"},

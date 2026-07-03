@@ -85,13 +85,14 @@ def cmd_produce(args):
     from .meme_copy import generate_meme_copy
     from .research_assets import discover_and_download_research_images
     from .video_harvest import harvest_video_sources
+    from .clip_review import is_reviewable_video, prepare_video_candidates_for_review
     from .state import PipelineState
     from concurrent.futures import ThreadPoolExecutor
     import json
     import shutil
 
     draft_path = Path(args.draft)
-    draft = json.loads(draft_path.read_text())
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
     job_id = draft["job_id"]
     lang = args.lang
     state = PipelineState(draft)
@@ -268,12 +269,32 @@ def cmd_produce(args):
                     {"assets": [str(f) for f in visual_assets], "provider": "pexels"},
                 )
             else:
-                frames = generate_broll(prompts, work_dir, provider="openai")
-                state.complete_stage("broll", {"frames": [str(f) for f in frames]})
+                research_assets = discover_and_download_research_images(
+                    draft.get("search_tags", []), draft.get("research_images", []),
+                    work_dir / "research_images",
+                    int(editing_config.get("research_images", [1, 4])[1]), niche_name,
+                )
+                if research_assets:
+                    asset_timeline = research_assets
+                    frames = [Path(item["path"]) for item in research_assets]
+                    state.complete_stage("broll", {"assets": [str(f) for f in frames], "timeline": asset_timeline})
+                else:
+                    frames = generate_broll(prompts, work_dir, provider="fallback")
+                    state.complete_stage("broll", {"frames": [str(f) for f in frames]})
         else:
-            asset_timeline = None
-            frames = generate_broll(prompts, work_dir, provider="openai")
-            state.complete_stage("broll", {"frames": [str(f) for f in frames]})
+            research_assets = discover_and_download_research_images(
+                draft.get("search_tags", []), draft.get("research_images", []),
+                work_dir / "research_images",
+                int(editing_config.get("research_images", [1, 4])[1]), niche_name,
+            )
+            if research_assets:
+                asset_timeline = research_assets
+                frames = [Path(item["path"]) for item in research_assets]
+                state.complete_stage("broll", {"assets": [str(f) for f in frames], "timeline": asset_timeline})
+            else:
+                asset_timeline = None
+                frames = generate_broll(prompts, work_dir, provider="fallback")
+                state.complete_stage("broll", {"frames": [str(f) for f in frames]})
     else:
         log("Skipping b-roll (already done)")
         assets = state.get_artifact("broll", "assets", [])
@@ -282,6 +303,44 @@ def cmd_produce(args):
         else:
             frames = [Path(f) for f in state.get_artifact("broll", "frames", [])]
         asset_timeline = state.get_artifact("broll", "timeline", None)
+
+    # Review harvested clips visually before the editor sees them. Rejected
+    # files remain in their source directories and review manifest.
+    if force or not state.is_done("clip_review"):
+        if asset_timeline:
+            harvested = [
+                item for item in asset_timeline
+                if is_reviewable_video(item)
+            ]
+            other_assets = [
+                item for item in asset_timeline
+                if not is_reviewable_video(item)
+            ]
+            if harvested:
+                review_result = prepare_video_candidates_for_review(
+                    draft,
+                    captions_result.get("words", []),
+                    harvested,
+                    work_dir / "clip_review",
+                    workers=int(editing_config.get("harvest_workers", 4)),
+                    batch_size=int(editing_config.get("clip_review_batch_size", 4)),
+                    keep_threshold=float(editing_config.get("clip_review_threshold", 0.58)),
+                )
+                asset_timeline = review_result.get("approved", []) + other_assets
+                state.complete_stage("clip_review", {
+                    "timeline": asset_timeline,
+                    "manifest_path": review_result.get("manifest_path", ""),
+                    "reviewed_count": review_result.get("reviewed_count", len(harvested)),
+                    "discarded_count": len(review_result.get("discarded", [])),
+                    "fallback_count": review_result.get("fallback_count", 0),
+                })
+            else:
+                state.complete_stage("clip_review", {"timeline": asset_timeline})
+        else:
+            state.complete_stage("clip_review", {"timeline": []})
+    else:
+        log("Skipping clip review (already done)")
+        asset_timeline = state.get_artifact("clip_review", "timeline", asset_timeline)
 
     # Editor brain: choose the cut order/effects from the full asset pool.
     if force or not state.is_done("editor"):
@@ -350,7 +409,7 @@ def cmd_upload(args):
     import json
 
     draft_path = Path(args.draft)
-    draft = json.loads(draft_path.read_text())
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
     lang = args.lang
     state = PipelineState(draft)
     force = getattr(args, "force", False)

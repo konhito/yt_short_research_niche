@@ -4,10 +4,20 @@ description: "Default profile for any topic. Clean, engaging, broadly appealing.
 
 editing:
   style: balanced
-  cut_duration_seconds: [3, 6]
-  pexels_clips: [1, 3]
-  meme_beats: [0, 2]
-  ai_images: [2, 4]
+  cut_duration_seconds: [2, 5]
+  pexels_clips: [2, 4]
+  meme_beats: [4, 8]
+  ai_images: [0, 0]
+  prefer_scraped_video: true
+  youtube_clips: [4, 8]
+  reddit_clips: [2, 5]
+  vimeo_clips: [2, 4]
+  research_images: [3, 8]
+  minimum_video_candidates: 6
+  harvest_workers: 4
+  yt_harvest_results: 30
+  vimeo_harvest_results: 20
+  reddit_harvest_after: 30d
   effects: [pan, punch_zoom, hard_cut]
 
 script:

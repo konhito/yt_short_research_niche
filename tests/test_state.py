@@ -93,6 +93,8 @@ class TestPipelineState:
     def test_stages_list(self):
         assert "research" in STAGES
         assert STAGES.index("editor") > STAGES.index("music")
+        assert STAGES.index("clip_review") > STAGES.index("broll")
+        assert STAGES.index("clip_review") < STAGES.index("editor")
         assert STAGES.index("editor") < STAGES.index("assemble")
         assert "upload" in STAGES
-        assert len(STAGES) == 11
+        assert len(STAGES) == 12

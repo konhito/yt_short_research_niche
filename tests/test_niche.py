@@ -28,7 +28,11 @@ def test_gaming_uses_meme_heavy_editing_defaults():
     assert config["meme_beats"] == [6, 10]
     assert config["youtube_clips"] == [4, 8]
     assert config["reddit_clips"] == [4, 8]
-    assert config["ai_images"] == [0, 1]
+    assert config["vimeo_clips"] == [0, 4]
+    assert config["vimeo_harvest_results"] == 20
+    assert config["clip_review_batch_size"] == 4
+    assert config["clip_review_threshold"] == 0.58
+    assert config["ai_images"] == [0, 0]
     assert config["prefer_scraped_video"] is True
     assert config["cut_duration_seconds"] == [2, 5]
     assert "punch_zoom" in config["effects"]
@@ -38,10 +42,23 @@ def test_harvest_environment_overrides(monkeypatch):
     monkeypatch.setenv("VIDEO_HARVEST_ENABLED", "false")
     monkeypatch.setenv("YOUTUBE_HARVEST_DOWNLOADS", "3")
     monkeypatch.setenv("REDDIT_HARVEST_DOWNLOADS", "5")
+    monkeypatch.setenv("VIMEO_HARVEST_DOWNLOADS", "2")
     monkeypatch.setenv("MINIMUM_VIDEO_CANDIDATES", "6")
     config = get_editing_config(load_niche("gaming"))
 
     assert config["prefer_scraped_video"] is False
     assert config["youtube_clips"][1] == 3
     assert config["reddit_clips"][1] == 5
+    assert config["vimeo_clips"][1] == 2
     assert config["minimum_video_candidates"] == 6
+
+
+def test_general_niche_enables_all_free_visual_sources():
+    config = get_editing_config(load_niche("general"))
+
+    assert config["prefer_scraped_video"] is True
+    assert config["youtube_clips"] == [4, 8]
+    assert config["reddit_clips"] == [2, 5]
+    assert config["vimeo_clips"] == [2, 4]
+    assert config["research_images"] == [3, 8]
+    assert config["meme_beats"] == [4, 8]

@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
-from .broll import generate_broll
 from .imgflip import create_meme, fetch_templates, select_template
 from .log import log
 from .mcp_assets import fetch_local_footage, fetch_pexels_footage, fetch_pixabay_footage
@@ -78,6 +77,8 @@ def normalize_visual_plan(draft: dict, editing: dict) -> list[dict]:
 
 def include_broll_prompt_assets(draft: dict, plan: list[dict], editing: dict) -> list[dict]:
     """Preserve original b-roll prompts as protected OpenAI image assets."""
+    if int(editing.get("ai_images", [0, 0])[1]) <= 0:
+        return plan
     prompts = [str(prompt).strip() for prompt in draft.get("broll_prompts", []) if str(prompt).strip()]
     if not prompts:
         return plan
@@ -195,7 +196,7 @@ def normalize_timeline_duration(items: list[dict], duration: float) -> list[dict
 
 
 def resolve_visual_assets(plan: list[dict], work_dir: Path) -> list[dict]:
-    """Resolve mixed provider items independently, falling back to OpenAI."""
+    """Resolve mixed provider items without paid image-generation fallback."""
     templates = fetch_templates() if any(item.get("type") == "meme" for item in plan) else None
     max_workers = min(6, max(1, len(plan)))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -204,10 +205,10 @@ def resolve_visual_assets(plan: list[dict], work_dir: Path) -> list[dict]:
             executor.submit(_resolve_visual_asset, index, item, work_dir, templates, meme_offsets.get(index, 0))
             for index, item in enumerate(plan)
         ]
-        return [future.result() for future in futures]
+        return [asset for future in futures if (asset := future.result()) is not None]
 
 
-def _resolve_visual_asset(index: int, item: dict, work_dir: Path, templates: list[dict] | None, meme_offset: int = 0) -> dict:
+def _resolve_visual_asset(index: int, item: dict, work_dir: Path, templates: list[dict] | None, meme_offset: int = 0) -> dict | None:
         item_dir = work_dir / f"visual_{index:02d}"
         item_dir.mkdir(parents=True, exist_ok=True)
         kind = item["type"]
@@ -249,12 +250,11 @@ def _resolve_visual_asset(index: int, item: dict, work_dir: Path, templates: lis
                         )[0]
                         source = "pixabay"
             else:
-                path = generate_broll([item["query"]], item_dir, provider="openai")[0]
-                source = "openai"
+                log(f"Skipping disabled AI image request: {item.get('query', '')}")
+                return None
         except Exception as exc:
-            log(f"{kind} visual failed ({exc}) - falling back to portrait OpenAI image")
-            path = generate_broll([item.get("query", "supporting visual")], item_dir, provider="openai")[0]
-            source = "openai_fallback"
+            log(f"{kind} visual failed ({exc}) - dropping unavailable asset")
+            return None
         return {**item, "path": str(path), "source": source}
 
 
@@ -269,4 +269,3 @@ def _meme_offsets(plan: list[dict]) -> dict[int, int]:
         offsets[index] = offset
         seen[key] = offset + 1
     return offsets
-

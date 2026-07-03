@@ -38,6 +38,8 @@ def _resize_to_portrait(image_path: Path, output_path: Path):
 def generate_broll(prompts: list, out_dir: Path, provider: str = "openai") -> list[Path]:
     """Generate 3 b-roll frames via OpenAI, with fallback frames."""
     provider = (provider or "openai").lower()
+    if provider == "fallback":
+        return [_fallback_frame(i, out_dir) for i in range(min(3, max(len(prompts), 1)))]
     api_key = get_openai_key() if provider == "openai" else get_gemini_key()
     if not api_key:
         log(

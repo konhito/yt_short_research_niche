@@ -51,6 +51,12 @@ def build_asset_manifest(assets: list[dict]) -> list[dict]:
             "contact_sheet_path": asset.get("contact_sheet_path", ""),
             "actual_duration": float(asset.get("actual_duration") or asset.get("duration") or 0),
             "media_hash": asset.get("media_hash", ""),
+            "review_decision": asset.get("review_decision", ""),
+            "review_reason": asset.get("review_reason", ""),
+            "visual_description": asset.get("visual_description", ""),
+            "matched_beat_ids": asset.get("matched_beat_ids", []),
+            "approved_source_ranges": asset.get("approved_source_ranges", []),
+            "review_warnings": asset.get("review_warnings", []),
         })
     return manifest
 
@@ -149,6 +155,9 @@ def validate_editor_timeline(
             "caption_emphasis": str(item.get("caption_emphasis", "")),
         }
         source_start = max(0.0, _float(item.get("source_start_seconds"), 0.0))
+        approved_ranges = asset.get("approved_source_ranges") or []
+        if approved_ranges:
+            source_start = _clamp_to_approved_range(source_start, end - start, approved_ranges)
         actual_duration = float(asset.get("actual_duration") or 0)
         if actual_duration > 0:
             source_start = min(source_start, max(0.0, actual_duration - (end - start)))
@@ -303,6 +312,7 @@ def _build_editor_prompt(
             "Use fit_width_pad for meme assets so they keep their original aspect ratio.",
             "Use fast cuts early; make the first 3 seconds visually intense.",
             "For harvested videos return source_start_seconds for the best visual moment.",
+            "For reviewed clips choose source_start_seconds and cut duration entirely inside approved_source_ranges.",
         ],
         "allowed_effects": sorted(ALLOWED_EFFECTS),
         "allowed_fits": sorted(ALLOWED_FITS),
@@ -354,6 +364,7 @@ def _source_targets(editing: dict) -> dict[str, dict[str, int]]:
     mapping = {
         "youtube_harvest": editing.get("youtube_clips", [0, 0]),
         "reddit_harvest": editing.get("reddit_clips", [0, 0]),
+        "vimeo_harvest": editing.get("vimeo_clips", [0, 0]),
         "web_research": editing.get("research_images", [0, 0]),
         "imgflip": editing.get("meme_beats", [0, 0]),
         "openai": editing.get("ai_images", [0, 0]),
@@ -381,6 +392,23 @@ def _float(value: Any, default: float) -> float:
 
 def _fill_color(editing: dict) -> str:
     return str(editing.get("meme_fill_color") or editing.get("fill_color") or "#0D0D0D")
+
+
+def _clamp_to_approved_range(source_start: float, segment_duration: float, ranges: list[dict]) -> float:
+    allowed = []
+    for item in ranges:
+        try:
+            start = max(0.0, float(item["start"]))
+            end = max(start, float(item["end"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        allowed.append((start, max(start, end - segment_duration)))
+    if not allowed:
+        return source_start
+    return min(
+        (max(low, min(source_start, high)) for low, high in allowed),
+        key=lambda value: abs(value - source_start),
+    )
 
 
 def _log_timeline_summary(timeline: list[dict], duration: float):

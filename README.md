@@ -282,7 +282,8 @@ All keys stored in `~/.verticals/config.json` with 0600 permissions:
 |----------|----------|---------|
 | `ANTHROPIC_API_KEY` | If using Claude API | Script generation |
 | `CLAUDE_CODE_OAUTH_TOKEN` | If using Claude CLI headless | Script generation (via `claude` CLI) |
-| `OPENAI_API_KEY` | If using OpenAI visuals/images | B roll + thumbnails + music planning |
+| `OPENAI_API_KEY` | If using OpenAI visuals/images | B roll + thumbnails + music planning + harvested clip review |
+| `VIMEO_ACCESS_TOKEN` | Optional | Official Vimeo public-video discovery; public search-page fallback is used without it |
 | `GEMINI_API_KEY` | If using Gemini visuals/LLM fallback | B roll + thumbnails |
 | `PEXELS_API_KEY` | If using Pexels videos | Stock b-roll clips |
 | `PIXABAY_API_KEY` | If using Pixabay videos | Backup stock b-roll clips |
@@ -312,7 +313,9 @@ The video resolver checks local clips before stock APIs, then falls back to Pexe
 
 ### Video-First Harvesting
 
-Gaming jobs harvest relevant licensed candidates from YouTube Shorts and Reddit before generating OpenAI images. Reddit discovery uses PullPush's submission endpoint with `is_video=true`, SFW filtering, recent-date filtering, niche subreddits, and score ordering. Reddit and YouTube downloads run concurrently through `yt-dlp`.
+Gaming jobs harvest relevant candidates from YouTube Shorts, Reddit, and Vimeo before generating OpenAI images. Reddit discovery uses PullPush's submission endpoint with `is_video=true`, SFW filtering, recent-date filtering, niche subreddits, and score ordering. Vimeo prefers its official API when `VIMEO_ACCESS_TOKEN` is configured and otherwise uses best-effort public search-page discovery. All three downloads run concurrently through `yt-dlp`.
+
+After download, the `clip_review` stage extracts six representative frames from every harvested clip and sends labelled contact sheets, script beats, and timed transcript segments to OpenAI vision. The review keeps useful source ranges and excludes wrong-topic, watermarked, duplicate, or otherwise unsuitable clips from the editor. Rejected media remains on disk for debugging, with decisions written to `clip_review/clip_review_manifest.json` inside the job work directory. If vision review fails, only that batch falls back to existing metadata and quality scores.
 
 Downloaded files and manifests are stored inside each job work directory:
 
@@ -333,7 +336,7 @@ REDDIT_HARVEST_AFTER=30d
 MINIMUM_VIDEO_CANDIDATES=8
 ```
 
-With at least `MINIMUM_VIDEO_CANDIDATES` unique harvested clips, gaming jobs skip OpenAI b-roll images. With fewer candidates, at most one OpenAI image is generated as fallback. The editor receives timed transcript segments and chooses source offsets from harvested clips.
+OpenAI b-roll images are temporarily disabled globally with `ai_images: [0, 0]`. The pipeline uses harvested video, memes, and downloaded web-research images; if every visual source fails, it uses a local solid-color safety frame without calling an image API. The editor receives timed transcript segments, visual-review descriptions, and approved source ranges; final validation clamps source offsets to those ranges.
 
 ## Topic Discovery
 

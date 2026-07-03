@@ -7,6 +7,7 @@ youtube_token.json
 # Environment files
 .env
 .env.*
+!.env.example
 
 # Generated pipeline output
 drafts/
@@ -24,6 +25,7 @@ build/
 venv/
 .pytest_cache/
 .tmp/
+.runtime-home/
 .agents/
 .codex/
 

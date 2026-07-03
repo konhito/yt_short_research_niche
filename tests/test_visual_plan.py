@@ -104,14 +104,24 @@ def test_video_first_policy_removes_ai_images_when_harvest_pool_is_sufficient():
     assert all(item["type"] != "ai_image" for item in result)
 
 
-def test_video_first_policy_keeps_only_one_ai_fallback_when_pool_is_small():
+def test_video_first_policy_keeps_no_ai_fallback_when_pool_is_small():
     plan = [
         {"type": "ai_image", "query": "one"},
         {"type": "ai_image", "query": "two"},
         {"type": "meme", "query": "reaction"},
     ]
-    editing = {"prefer_scraped_video": True, "minimum_video_candidates": 8, "ai_images": [0, 1]}
+    editing = {"prefer_scraped_video": True, "minimum_video_candidates": 8, "ai_images": [0, 0]}
 
     result = apply_video_first_policy(plan, editing, harvested_count=2)
 
-    assert sum(item["type"] == "ai_image" for item in result) == 1
+    assert all(item["type"] != "ai_image" for item in result)
+
+
+def test_broll_prompt_assets_are_skipped_when_ai_images_disabled():
+    merged = include_broll_prompt_assets(
+        {"broll_prompts": ["Anthropic Claude office"]},
+        [{"type": "meme", "query": "reaction"}],
+        {"ai_images": [0, 0], "cut_duration_seconds": [2, 5], "effects": ["pan"]},
+    )
+
+    assert all(item["type"] != "ai_image" for item in merged)
